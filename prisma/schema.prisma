@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/client/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model accounts {
+  id                                                     String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                                                  String             @unique @db.VarChar(255)
+  password_hash                                          String
+  created_at                                             DateTime?          @default(now()) @db.Timestamp(6)
+  restaurant_users_restaurant_users_account_idToaccounts restaurant_users[] @relation("restaurant_users_account_idToaccounts")
+  restaurant_users_restaurant_users_invited_byToaccounts restaurant_users[] @relation("restaurant_users_invited_byToaccounts")
+  restaurants                                            restaurants[]
+
+  @@index([email], map: "idx_accounts_email")
+}
+
+model audit_logs {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  restaurant_id String?   @db.Uuid
+  action        String?   @db.VarChar(255)
+  entity        String?   @db.VarChar(100)
+  entity_id     String?   @db.Uuid
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model categories {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unit_id       String     @db.Uuid
+  name          String     @db.VarChar(255)
+  display_order Int?       @default(0)
+  units         units      @relation(fields: [unit_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  products      products[]
+}
+
+model order_items {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id   String   @db.Uuid
+  product_id String   @db.Uuid
+  quantity   Int
+  unit_price Decimal  @db.Decimal(10, 2)
+  orders     orders   @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  products   products @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model orders {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unit_id        String        @db.Uuid
+  customer_name  String?       @db.VarChar(255)
+  customer_phone String?       @db.VarChar(50)
+  status         String?       @default("PENDING") @db.VarChar(50)
+  total_amount   Decimal?      @db.Decimal(10, 2)
+  created_at     DateTime?     @default(now()) @db.Timestamp(6)
+  order_items    order_items[]
+  units          units         @relation(fields: [unit_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  payments       payments[]
+
+  @@index([unit_id], map: "idx_orders_unit")
+}
+
+model payments {
+  id       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id String    @db.Uuid
+  method   String?   @db.VarChar(50)
+  status   String?   @db.VarChar(50)
+  paid_at  DateTime? @db.Timestamp(6)
+  orders   orders    @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model products {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  category_id  String        @db.Uuid
+  name         String        @db.VarChar(255)
+  description  String?
+  price        Decimal       @db.Decimal(10, 2)
+  image_url    String?
+  is_available Boolean?      @default(true)
+  created_at   DateTime?     @default(now()) @db.Timestamp(6)
+  order_items  order_items[]
+  categories   categories    @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([category_id], map: "idx_products_category")
+}
+
+model restaurant_users {
+  id                                             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  restaurant_id                                  String      @db.Uuid
+  account_id                                     String      @db.Uuid
+  role                                           String      @db.VarChar(50)
+  invited_by                                     String?     @db.Uuid
+  created_at                                     DateTime?   @default(now()) @db.Timestamp(6)
+  accounts_restaurant_users_account_idToaccounts accounts    @relation("restaurant_users_account_idToaccounts", fields: [account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  accounts_restaurant_users_invited_byToaccounts accounts?   @relation("restaurant_users_invited_byToaccounts", fields: [invited_by], references: [id], onUpdate: NoAction)
+  restaurants                                    restaurants @relation(fields: [restaurant_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([restaurant_id, account_id], map: "unique_user_per_restaurant")
+  @@index([account_id], map: "idx_restaurant_users_account")
+}
+
+model restaurants {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_id         String             @db.Uuid
+  name             String             @db.VarChar(255)
+  slug             String             @unique @db.VarChar(150)
+  created_at       DateTime?          @default(now()) @db.Timestamp(6)
+  restaurant_users restaurant_users[]
+  accounts         accounts           @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([slug], map: "idx_restaurants_slug")
+}
+
+model units {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  restaurant_id String       @db.Uuid
+  name          String?      @db.VarChar(255)
+  slug          String       @db.VarChar(150)
+  city          String?      @db.VarChar(100)
+  state         String?      @db.VarChar(50)
+  created_at    DateTime?    @default(now()) @db.Timestamp(6)
+  categories    categories[]
+  orders        orders[]
+
+  @@unique([restaurant_id, slug], map: "unique_unit_slug_per_restaurant")
+  @@index([slug], map: "idx_unit_slug")
+}
+
+model users {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  restaurant_id String    @db.Uuid
+  name          String?   @db.VarChar(255)
+  email         String    @unique @db.VarChar(255)
+  password_hash String
+  role          String    @db.VarChar(50)
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+}
